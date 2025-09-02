@@ -5,3 +5,5 @@ This project tackles a logic puzzle set on a 7×7 grid, following strict visibil
 - The puzzle has exactly one valid solution.
 
 The reference JavaScript solution completes the task in ~10 seconds, so performance optimization is essential.
+
+Kata link: https://www.codewars.com/kata/5917a2205ffc30ec3a0000a8

@@ -1,0 +1,15 @@
+using System;
+
+public class Kata
+{
+    public static Func<char> MakeLooper(string str)
+    {
+        // TODO: return a function that loops through 'str' on successive invocations
+        return () => FuncLoop(str = str.Substring(1) + str[0]);
+    }
+  
+    public static char FuncLoop(string str)
+    {
+        return str[str.Length - 1];
+    }
+}

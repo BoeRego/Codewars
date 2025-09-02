@@ -1,0 +1,1221 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class Skyscrapers
+{
+    struct CombinationPhase
+    {
+        public int key;
+        public int[] value;
+        public List<int> elementsToCombine;
+
+        public CombinationPhase(int key, int[] value, List<int> elementsToCombine)
+        {
+            this.key = key;
+            this.value = value;
+            this.elementsToCombine = elementsToCombine;
+        }
+    }
+
+    public static int[][] SolvePuzzle(int[] myClues)
+    {
+        int expected_Dim = myClues.Length / 4;
+        int[,] myExpected = new int[expected_Dim, expected_Dim];
+
+        int maxHeight = myExpected.GetLength(0);
+
+        List<int>[,] availableHeights = new List<int>[2, myExpected.GetLength(0)]; // columns = 0, rows = 1
+        for (int index = 0; index < myExpected.GetLength(0); index++)
+        {
+            availableHeights[0, index] = new List<int>();
+            availableHeights[1, index] = new List<int>();
+
+            for (int height = 1; height <= maxHeight; height++)
+            {
+                availableHeights[0, index].Add(height);
+                availableHeights[1, index].Add(height);
+            }
+        }
+
+        // Guaranteed heights
+        GuardanteedHeightsByMinMaxClues(myExpected, myClues, maxHeight, availableHeights);
+        GuardanteedMaxHeightByCrossedClues(myExpected, myClues, maxHeight, availableHeights);
+
+        // Sequences searcher
+        CalculateSequences(ref myExpected, myClues, maxHeight, availableHeights);
+
+        return FromArray2D_ToArrayOfArray(myExpected);
+    }
+
+    static void GuardanteedHeightsByMinMaxClues(int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        for (int clues_Index = 0; clues_Index < myClues.Length; clues_Index++)
+        {
+            if (myClues[clues_Index] > 0)
+            {
+                switch (clues_Index / myExpected.GetLength(0))
+                {
+                    case 0: // UP myClues
+                        AssignHeightsByMinMaxClues_Up(clues_Index, myExpected, myClues, maxHeight, availableHeights);
+                        break;
+
+                    case 1: // RIGHT myClues
+                        AssignHeightsByMinMaxClues_Right(clues_Index, myExpected, myClues, maxHeight, availableHeights);
+                        break;
+
+                    case 2: // DOWN myClues
+                        AssignHeightsByMinMaxClues_Down(clues_Index, myExpected, myClues, maxHeight, availableHeights);
+                        break;
+
+                    case 3: // LEFT myClues
+                        AssignHeightsByMinMaxClues_Left(clues_Index, myExpected, myClues, maxHeight, availableHeights);
+                        break;
+                }
+            }
+        }
+    }
+
+    static void AssignHeightsByMinMaxClues_Up(int clues_Index, int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        int clue_Column = clues_Index;
+
+        if (myClues[clues_Index] == maxHeight)
+        {
+            for (int row = 0; row < maxHeight; row++)
+            {
+                int value = row + 1;
+
+                myExpected[row, clue_Column] = value;
+
+                availableHeights[1, row].Remove(value);
+            }
+
+            availableHeights[0, clue_Column].Clear();
+        }
+        else if (myClues[clues_Index] == 1)
+        {
+            myExpected[0, clue_Column] = maxHeight;
+
+            availableHeights[0, clue_Column].Remove(maxHeight);
+            availableHeights[1, 0].Remove(maxHeight);
+        }
+    }
+
+    static void AssignHeightsByMinMaxClues_Right(int clues_Index, int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        int clue_Row = clues_Index % myExpected.GetLength(0);
+
+        if (myClues[clues_Index] == maxHeight)
+        {
+            for (int column = maxHeight - 1; column >= 0; column--)
+            {
+                int value = maxHeight - column;
+
+                myExpected[clue_Row, column] = value;
+
+                availableHeights[0, column].Remove(value);
+            }
+
+            availableHeights[1, clue_Row].Clear();
+        }
+        else if (myClues[clues_Index] == 1)
+        {
+            myExpected[clue_Row, myExpected.GetLength(0) - 1] = maxHeight;
+
+            availableHeights[1, clue_Row].Remove(maxHeight);
+            availableHeights[0, myExpected.GetLength(0) - 1].Remove(maxHeight);
+        }
+    }
+
+    static void AssignHeightsByMinMaxClues_Down(int clues_Index, int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        int clue_Column = myExpected.GetLength(0) - 1 - (clues_Index % myExpected.GetLength(0));
+
+        if (myClues[clues_Index] == maxHeight)
+        {
+            for (int row = maxHeight - 1; row >= 0; row--)
+            {
+                int value = maxHeight - row;
+
+                myExpected[row, clue_Column] = maxHeight - row;
+
+                availableHeights[1, row].Remove(value);
+            }
+
+            availableHeights[0, clue_Column].Clear();
+        }
+        else if (myClues[clues_Index] == 1)
+        {
+            myExpected[myExpected.GetLength(0) - 1, clue_Column] = maxHeight;
+
+            availableHeights[0, clue_Column].Remove(maxHeight);
+            availableHeights[1, myExpected.GetLength(0) - 1].Remove(maxHeight);
+        }
+    }
+
+    static void AssignHeightsByMinMaxClues_Left(int clues_Index, int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        int clue_Row = myExpected.GetLength(0) - 1 - (clues_Index % myExpected.GetLength(0));
+
+        if (myClues[clues_Index] == maxHeight)
+        {
+            for (int column = 0; column < maxHeight; column++)
+            {
+                int value = column + 1;
+
+                myExpected[clue_Row, column] = column + 1;
+
+                availableHeights[0, column].Remove(value);
+            }
+
+            availableHeights[1, clue_Row].Clear();
+        }
+        else if (myClues[clues_Index] == 1)
+        {
+            myExpected[clue_Row, 0] = maxHeight;
+
+            availableHeights[1, clue_Row].Remove(maxHeight);
+            availableHeights[0, 0].Remove(maxHeight);
+        }
+    }
+
+    static void GuardanteedMaxHeightByCrossedClues(int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        int clues_QuarterLength = myClues.Length / 4;
+
+        for (int clues_Index = 0; clues_Index < myClues.Length / 2; clues_Index++)
+        {
+            if (clues_Index < clues_QuarterLength) // columns myClues
+            {
+                int clues_OppositeIndex = (clues_QuarterLength * 3) - 1 - clues_Index;
+
+                int sum = myClues[clues_Index] + myClues[clues_OppositeIndex];
+                if (sum == maxHeight + 1)
+                {
+                    myExpected[myClues[clues_Index] - 1, clues_Index] = maxHeight;
+
+                    availableHeights[0, clues_Index].Remove(maxHeight);
+                    availableHeights[1, myClues[clues_Index] - 1].Remove(maxHeight);
+                }
+            }
+            else // rows myClues
+            {
+                int clues_OppositeIndex = myClues.Length - 1 - (clues_Index % maxHeight);
+
+                int sum = myClues[clues_Index] + myClues[clues_OppositeIndex];
+                if (sum == maxHeight + 1)
+                {
+                    myExpected[clues_Index % maxHeight, myExpected.GetLength(0) - myClues[clues_Index]] = maxHeight;
+
+                    availableHeights[0, myExpected.GetLength(0) - myClues[clues_Index]].Remove(maxHeight);
+                    availableHeights[1, clues_Index % maxHeight].Remove(maxHeight);
+                }
+            }
+        }
+    }
+
+    static void CalculateSequences(ref int[,] myExpected, int[] myClues, int maxHeight, List<int>[,] availableHeights)
+    {
+        // Create validatedSequences
+        List<int[,]> validatedSequences = new List<int[,]>
+        {
+            myExpected
+        };
+
+        // Create availableHeights_ByValidatedSequences
+        List<List<int>[,]> availableHeights_ByValidatedSequences = new List<List<int>[,]>
+        {
+            new List<int>[availableHeights.GetLength(1), availableHeights.GetLength(1)]
+        };
+
+        // Create nextPositionToCheck_ByValidatedSequences AND Update availableHeights_ByValidatedSequences
+        List<int[]> nextPositionToCheck_ByValidatedSequences = new List<int[]>();
+
+        int minPossibleHeights = maxHeight + 1;
+        int maxValidClues = -1;
+
+        int[] nextPositionToCheck = new int[2] { minPossibleHeights, maxValidClues };
+
+        for (int row = 0; row < myExpected.GetLength(0); row++)
+        {
+            for (int column = 0; column < myExpected.GetLength(0); column++)
+            {
+                int[] position = new int[2] { row, column };
+
+                int[] crossedClues = CrossedClues(position, myClues);
+
+                List<int> availableHeights_ByValidatedSequences_NewElement = new List<int>();
+
+                if (validatedSequences[0][row, column] == 0)
+                {
+                    for (int index = 0; index < availableHeights[1, row].Count; index++)
+                    {
+                        int availableHeights_Row = availableHeights[1, row][index];
+
+                        if (availableHeights[0, column].Contains(availableHeights_Row))
+                        {
+                            int inspectedHeight = availableHeights_Row;
+
+                            int satisfiedClues = SatisfiedClues_PRE(maxHeight, inspectedHeight, position, crossedClues, validatedSequences[0], availableHeights);
+
+                            if (satisfiedClues == crossedClues.Length)
+                            {
+                                availableHeights_ByValidatedSequences_NewElement.Add(inspectedHeight);
+                            }
+                        }
+                    }
+                }
+
+                availableHeights_ByValidatedSequences[0][position[0], position[1]] = availableHeights_ByValidatedSequences_NewElement;
+
+                int crossedClues_ValidClues = 0;
+
+                foreach (int clue in crossedClues)
+                {
+                    if (clue > 0)
+                    {
+                        crossedClues_ValidClues++;
+                    }
+                }
+
+                int possibleHeights = availableHeights_ByValidatedSequences[0][position[0], position[1]].Count;
+
+                if (possibleHeights > 0)
+                {
+                    if (possibleHeights == 1)
+                    {
+                        minPossibleHeights = possibleHeights;
+
+                        nextPositionToCheck = position;
+                    }
+                    else
+                    {
+                        if (possibleHeights < minPossibleHeights)
+                        {
+                            minPossibleHeights = possibleHeights;
+                            maxValidClues = crossedClues_ValidClues;
+
+                            nextPositionToCheck = position;
+                        }
+                        else if (possibleHeights == minPossibleHeights)
+                        {
+                            if (crossedClues_ValidClues > maxValidClues)
+                            {
+                                minPossibleHeights = possibleHeights;
+                                maxValidClues = crossedClues_ValidClues;
+
+                                nextPositionToCheck = position;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        nextPositionToCheck_ByValidatedSequences.Add(nextPositionToCheck);
+
+        MaxHeightSequences(maxHeight, myClues, ref validatedSequences, ref availableHeights_ByValidatedSequences, ref nextPositionToCheck_ByValidatedSequences);
+
+        List<int[,]> validatedSequences_Backup = new List<int[,]>();
+        List<List<int>[,]> availableHeights_Backup = new List<List<int>[,]>();
+        List<int[]> nextPositionToCheck_Backup = new List<int[]>();
+
+        bool sequenceCompleted = false;
+
+        while (validatedSequences.Count > 0 && !sequenceCompleted)
+        {
+            List<int[,]> validatedSequences_New = new List<int[,]>();
+            List<List<int>[,]> availableHeights_ByValidatedSequences_New = new List<List<int>[,]>();
+            List<int[]> nextPositionToCheck_ByValidatedSequences_New = new List<int[]>();
+
+            for (int validatedSequence_Index = 0; validatedSequence_Index < validatedSequences.Count; validatedSequence_Index++)
+            {
+                if (nextPositionToCheck_ByValidatedSequences[validatedSequence_Index][0] > maxHeight)
+                {
+                    sequenceCompleted = true;
+                    myExpected = validatedSequences[validatedSequence_Index];
+                    break;
+                }
+                else
+                {
+                    List<int[,]> validatedSequences_Param;
+                    List<List<int>[,]> availableHeights_ByValidatedSequences_Param;
+                    List<int[]> nextPositionToCheck_ByValidatedSequences_Param;
+
+                    SequencesValidation(maxHeight, myClues, validatedSequences[validatedSequence_Index], out validatedSequences_Param,
+                    availableHeights_ByValidatedSequences[validatedSequence_Index], out availableHeights_ByValidatedSequences_Param,
+                    nextPositionToCheck_ByValidatedSequences[validatedSequence_Index], out nextPositionToCheck_ByValidatedSequences_Param);
+
+                    validatedSequences_New.AddRange(validatedSequences_Param);
+                    availableHeights_ByValidatedSequences_New.AddRange(availableHeights_ByValidatedSequences_Param);
+                    nextPositionToCheck_ByValidatedSequences_New.AddRange(nextPositionToCheck_ByValidatedSequences_Param);
+                }
+            }
+
+            if (!sequenceCompleted)
+            {
+                availableHeights_ByValidatedSequences = availableHeights_ByValidatedSequences_New;
+                validatedSequences = validatedSequences_New;
+                nextPositionToCheck_ByValidatedSequences = nextPositionToCheck_ByValidatedSequences_New;
+
+                // Memory batch subdivision
+                int sequencesLimit = (int)Math.Pow(maxHeight, maxHeight) / (maxHeight * 70);
+
+                if (validatedSequences.Count > sequencesLimit)
+                {
+                    validatedSequences_Backup.AddRange(validatedSequences);
+                    validatedSequences = new List<int[,]>() { validatedSequences_Backup[0] };
+
+                    availableHeights_Backup.AddRange(availableHeights_ByValidatedSequences);
+                    availableHeights_ByValidatedSequences = new List<List<int>[,]> { availableHeights_Backup[0] };
+
+                    nextPositionToCheck_Backup.AddRange(nextPositionToCheck_ByValidatedSequences);
+                    nextPositionToCheck_ByValidatedSequences = new List<int[]> { nextPositionToCheck_Backup[0] };
+                }
+                else if (validatedSequences.Count == 0 && validatedSequences_Backup.Count > 0)
+                {
+                    validatedSequences.AddRange(validatedSequences_Backup.Take(sequencesLimit));
+                    validatedSequences_Backup.RemoveRange(0, Math.Min(sequencesLimit, validatedSequences_Backup.Count));
+
+                    availableHeights_ByValidatedSequences.AddRange(availableHeights_Backup.Take(sequencesLimit));
+                    availableHeights_Backup.RemoveRange(0, Math.Min(sequencesLimit, availableHeights_Backup.Count));
+
+                    nextPositionToCheck_ByValidatedSequences.AddRange(nextPositionToCheck_Backup.Take(sequencesLimit));
+                    nextPositionToCheck_Backup.RemoveRange(0, Math.Min(sequencesLimit, nextPositionToCheck_Backup.Count));
+                }
+            }
+        }
+    }
+
+
+    static int[] CrossedClues(int[] position, int[] myClues)
+    {
+        int clues_QuarterLength = myClues.Length / 4;
+
+        int[] crossedClues = new int[4]; // UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3 
+
+        crossedClues[0] = myClues[position[1]];
+        crossedClues[1] = myClues[clues_QuarterLength + position[0]];
+        crossedClues[2] = myClues[(clues_QuarterLength * 2) + (clues_QuarterLength - position[1] - 1)];
+        crossedClues[3] = myClues[(clues_QuarterLength * 3) + (clues_QuarterLength - position[0] - 1)];
+
+        return crossedClues;
+    }
+
+    static void AssignHeight(int maxHeight, int inspectedHeight, int[] position, int[] myClues,
+    int[,] validatedSequences_CurrentValidatedSequence, List<int>[,] availableHeights_Current,
+    List<int[,]> validatedSequences_New, List<List<int>[,]> availableHeights_ByValidatedSequences_New, List<int[]> nextPositionToCheck_New)
+    {
+        // Update validatedSequences_New
+        int[,] validatedSequences_Current = Array2D_Copy(validatedSequences_CurrentValidatedSequence);
+        validatedSequences_Current[position[0], position[1]] = inspectedHeight;
+
+        bool consistentSequence = true;
+
+        // Update availableHeights_ByValidatedSequences_New
+        List<int>[,] availableHeights_Current_This = new List<int>[availableHeights_Current.GetLength(0), availableHeights_Current.GetLength(1)];
+        for (int row = 0; row < availableHeights_Current_This.GetLength(0); row++)
+        {
+            for (int column = 0; column < availableHeights_Current_This.GetLength(1); column++)
+            {
+                availableHeights_Current_This[row, column] = new List<int>(availableHeights_Current[row, column]);
+            }
+        }
+
+        availableHeights_Current_This[position[0], position[1]].Clear();
+
+        for (int index = 0; index < availableHeights_Current_This.GetLength(0); index++)
+        {
+            availableHeights_Current_This[index, position[1]].Remove(inspectedHeight);
+
+            if (availableHeights_Current_This[index, position[1]].Count == 0 && validatedSequences_Current[index, position[1]] == 0)
+            {
+                consistentSequence = false;
+                break;
+            }
+
+            availableHeights_Current_This[position[0], index].Remove(inspectedHeight);
+
+            if (availableHeights_Current_This[position[0], index].Count == 0 && validatedSequences_Current[position[0], index] == 0)
+            {
+                consistentSequence = false;
+                break;
+            }
+        }
+
+        if (consistentSequence)
+        {
+            validatedSequences_New.Add(validatedSequences_Current);
+
+            availableHeights_ByValidatedSequences_New.Add(availableHeights_Current_This);
+
+            // Update nextPositionToCheck_New          
+            int minPossibleHeights = maxHeight + 1;
+            int maxValidClues = -1;
+
+            int[] nextPositionToCheck = new int[2] { minPossibleHeights, maxValidClues };
+
+            int row = 0;
+
+            while (row < availableHeights_Current_This.GetLength(0) && minPossibleHeights > 1)
+            {
+                int column = 0;
+
+                while (column < availableHeights_Current_This.GetLength(0) && minPossibleHeights > 1)
+                {
+                    int[] position_This = new int[2] { row, column };
+
+                    int[] crossedClues = CrossedClues(position, myClues);
+
+                    int validClues = 0;
+
+                    foreach (int clue in crossedClues)
+                    {
+                        if (clue > 0)
+                        {
+                            validClues++;
+                        }
+                    }
+
+                    int possibleHeights = availableHeights_Current_This[position_This[0], position_This[1]].Count;
+
+                    if (possibleHeights > 0)
+                    {
+                        if (possibleHeights == 1)
+                        {
+                            minPossibleHeights = possibleHeights;
+
+                            nextPositionToCheck = position_This;
+                        }
+                        else
+                        {
+                            if (possibleHeights < minPossibleHeights)
+                            {
+                                minPossibleHeights = possibleHeights;
+                                maxValidClues = validClues;
+
+                                nextPositionToCheck = position_This;
+                            }
+                            else if (possibleHeights == minPossibleHeights)
+                            {
+                                if (validClues > maxValidClues)
+                                {
+                                    minPossibleHeights = possibleHeights;
+                                    maxValidClues = validClues;
+
+                                    nextPositionToCheck = position_This;
+                                }
+                            }
+                        }
+                    }
+
+                    column++;
+                }
+
+                row++;
+            }
+
+            nextPositionToCheck_New.Add(nextPositionToCheck);
+        }
+    }
+
+    static int SatisfiedClues_PRE(int maxHeight, int inspectedHeight, int[] position, int[] crossedClues, int[,] validatedSequence, List<int>[,] availableHeights)
+    {
+        int satisfiedClues = 0;
+
+        for (int crossedClues_index = 0; crossedClues_index < crossedClues.Length; crossedClues_index++)
+        {
+            int clue = crossedClues[crossedClues_index];
+
+            if (clue > 0)
+            {
+                bool clueSatisfied = false;
+
+                switch (crossedClues_index)
+                {
+                    case 0: // UP myClues
+                        clueSatisfied = SatisfiedClues_Up_PRE(maxHeight, inspectedHeight, clue, position);
+                        break;
+
+                    case 1: // RIGHT myClues
+                        clueSatisfied = SatisfiedClues_Right_PRE(maxHeight, inspectedHeight, clue, position, validatedSequence.GetLength(0));
+                        break;
+
+                    case 2: // DOWN myClues
+                        clueSatisfied = SatisfiedClues_Down_PRE(maxHeight, inspectedHeight, clue, position, validatedSequence.GetLength(0));
+                        break;
+
+                    case 3: // LEFT myClues
+                        clueSatisfied = SatisfiedClues_Left_PRE(maxHeight, inspectedHeight, clue, position);
+                        break;
+                }
+
+                if (clueSatisfied)
+                {
+                    satisfiedClues++;
+                }
+            }
+            else
+            {
+                switch (crossedClues_index)
+                {
+                    case 0: // UP myClues
+                        if (availableHeights[0, position[1]].Contains(inspectedHeight))
+                        {
+                            satisfiedClues++;
+                        }
+                        break;
+
+                    case 1: // RIGHT myClues
+                        if (availableHeights[1, position[0]].Contains(inspectedHeight))
+                        {
+                            satisfiedClues++;
+                        }
+                        break;
+
+                    case 2: // DOWN myClues
+                        if (availableHeights[0, position[1]].Contains(inspectedHeight))
+                        {
+                            satisfiedClues++;
+                        }
+                        break;
+
+                    case 3: // LEFT myClues                    
+                        if (availableHeights[1, position[0]].Contains(inspectedHeight))
+                        {
+                            satisfiedClues++;
+                        }
+                        break;
+                }
+            }
+        }
+
+        return satisfiedClues;
+    }
+
+    static bool SatisfiedClues_Up_PRE(int maxHeight, int inspectedHeight, int clue, int[] position)
+    {
+        if ((inspectedHeight - position[0]) <= (maxHeight - clue + 1))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static bool SatisfiedClues_Right_PRE(int maxHeight, int inspectedHeight, int clue, int[] position, int sequenceLength)
+    {
+        if ((inspectedHeight - (sequenceLength - 1 - position[1])) <= (maxHeight - clue + 1))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static bool SatisfiedClues_Down_PRE(int maxHeight, int inspectedHeight, int clue, int[] position, int sequenceLength)
+    {
+        if ((inspectedHeight - (sequenceLength - 1 - position[0])) <= (maxHeight - clue + 1))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static bool SatisfiedClues_Left_PRE(int maxHeight, int inspectedHeight, int clue, int[] position)
+    {
+        if ((inspectedHeight - position[1]) <= (maxHeight - clue + 1))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static void MaxHeightSequences(int maxHeight, int[] myClues, ref List<int[,]> validatedSequences, ref List<List<int>[,]> availableHeights_ByValidatedSequences, ref List<int[]> nextPositionToCheck_ByValidatedSequences)
+    {
+        for (int row = 0; row < validatedSequences[0].GetLength(0); row++)
+        {
+            List<int[,]> validatedSequences_New = new List<int[,]>();
+            List<List<int>[,]> availableHeights_ByValidatedSequences_New = new List<List<int>[,]>();
+            List<int[]> nextPositionToCheck_New = new List<int[]>();
+
+            for (int validatedSequences_Index = 0; validatedSequences_Index < validatedSequences.Count; validatedSequences_Index++)
+            {
+                for (int column = 0; column < validatedSequences[0].GetLength(0); column++)
+                {
+                    if (validatedSequences[validatedSequences_Index][row, column] == maxHeight)
+                    {
+                        validatedSequences_New.Add(validatedSequences[validatedSequences_Index]);
+                        availableHeights_ByValidatedSequences_New.Add(availableHeights_ByValidatedSequences[validatedSequences_Index]);
+                        nextPositionToCheck_New.Add(nextPositionToCheck_ByValidatedSequences[validatedSequences_Index]);
+                    }
+                    if (availableHeights_ByValidatedSequences[validatedSequences_Index][row, column].Contains(maxHeight))
+                    {
+                        int[] position = new int[2] { row, column };
+
+                        AssignHeight(maxHeight, maxHeight, position, myClues,
+                        validatedSequences[validatedSequences_Index], availableHeights_ByValidatedSequences[validatedSequences_Index],
+                        validatedSequences_New, availableHeights_ByValidatedSequences_New, nextPositionToCheck_New);
+                    }
+                }
+            }
+
+            if (validatedSequences_New.Count > 0)
+            {
+                validatedSequences = validatedSequences_New;
+                availableHeights_ByValidatedSequences = availableHeights_ByValidatedSequences_New;
+                nextPositionToCheck_ByValidatedSequences = nextPositionToCheck_New;
+            }
+        }
+    }
+
+    static void SequencesValidation(int maxHeight, int[] myClues, int[,] validatedSequences_IN, out List<int[,]> validatedSequences_OUT,
+    List<int>[,] availableHeights_ByValidatedSequences_IN, out List<List<int>[,]> availableHeights_ByValidatedSequences_OUT,
+    int[] nextPositionToCheck_ByValidatedSequences_IN, out List<int[]> nextPositionToCheck_ByValidatedSequences_OUT)
+    {
+        List<int[,]> validatedSequences_New = new List<int[,]>();
+        List<List<int>[,]> availableHeights_ByValidatedSequences_New = new List<List<int>[,]>();
+        List<int[]> nextPositionToCheck_New = new List<int[]>();
+
+        int[] position = nextPositionToCheck_ByValidatedSequences_IN;
+
+        int[] crossedClues = CrossedClues(position, myClues);
+
+        List<int> availableHeights_CurrentValidatedSequence_CurrentPosition = new List<int>(availableHeights_ByValidatedSequences_IN[position[0], position[1]]);
+
+        List<int> heightList = new List<int>();
+        for (int height = 1; height <= maxHeight; height++)
+        {
+            heightList.Add(height);
+        }
+
+        int availableHeights_CurrentValidatedSequence_CurrentPosition_Index = 0;
+
+        while (availableHeights_CurrentValidatedSequence_CurrentPosition_Index < availableHeights_CurrentValidatedSequence_CurrentPosition.Count)
+        {
+            int inspectedHeight = availableHeights_CurrentValidatedSequence_CurrentPosition[availableHeights_CurrentValidatedSequence_CurrentPosition_Index];
+
+            List<int>[,] availableHeights_BySides = new List<int>[2, availableHeights_ByValidatedSequences_IN.GetLength(0)];
+
+            for (int index_i = 0; index_i < availableHeights_ByValidatedSequences_IN.GetLength(0); index_i++)
+            {
+                availableHeights_BySides[0, index_i] = new List<int>(heightList);
+                availableHeights_BySides[1, index_i] = new List<int>(heightList);
+
+                for (int index_j = 0; index_j < availableHeights_ByValidatedSequences_IN.GetLength(1); index_j++)
+                {
+                    availableHeights_BySides[0, index_i].Remove(validatedSequences_IN[index_j, index_i]);
+                    availableHeights_BySides[1, index_i].Remove(validatedSequences_IN[index_i, index_j]);
+                }
+            }
+
+            int satisfiedClues = SatisfiedClues(maxHeight, inspectedHeight, position, crossedClues, validatedSequences_IN, availableHeights_BySides);
+
+            if (satisfiedClues == crossedClues.Length)
+            {
+                AssignHeight(maxHeight, inspectedHeight, position, myClues,
+                validatedSequences_IN, availableHeights_ByValidatedSequences_IN,
+                validatedSequences_New, availableHeights_ByValidatedSequences_New, nextPositionToCheck_New);
+            }
+
+            availableHeights_CurrentValidatedSequence_CurrentPosition_Index++;
+        }
+
+        nextPositionToCheck_ByValidatedSequences_OUT = nextPositionToCheck_New;
+
+        availableHeights_ByValidatedSequences_OUT = availableHeights_ByValidatedSequences_New;
+        validatedSequences_OUT = validatedSequences_New;
+    }
+
+    static int SatisfiedClues(int maxHeight, int inspectedHeight, int[] position, int[] crossedClues, int[,] validatedSequence, List<int>[,] availableHeights)
+    {
+        int satisfiedClues = 0;
+
+        for (int crossedClues_index = 0; crossedClues_index < crossedClues.Length / 2; crossedClues_index++)
+        {
+            int[,] inspectedSequences = validatedSequence;
+
+            bool clueSatisfied = false;
+
+            switch (crossedClues_index)
+            {
+                case 0: // Column Clues
+                    clueSatisfied = SatisfiedClues_Column(maxHeight, inspectedHeight, crossedClues[0], crossedClues[2], position, availableHeights, inspectedSequences);
+                    break;
+
+                case 1: // Row Clues
+                    clueSatisfied = SatisfiedClues_Row(maxHeight, inspectedHeight, crossedClues[3], crossedClues[1], position, availableHeights, inspectedSequences);
+                    break;
+            }
+
+            if (clueSatisfied)
+            {
+                satisfiedClues += 2;
+            }
+        }
+
+        return satisfiedClues;
+    }
+
+    static bool SatisfiedClues_Column(int maxHeight, int inspectedHeight, int clue_Begin, int clue_End, int[] position, List<int>[,] availableHeights, int[,] inspectedSequences)
+    {
+        bool clueSatisfied = false;
+
+        if (!availableHeights[1, position[0]].Contains(inspectedHeight))
+        {
+            return false;
+        }
+
+        if (((inspectedHeight - position[0]) <= (maxHeight - clue_Begin + 1)) && ((inspectedHeight - (inspectedSequences.GetLength(0) - 1 - position[0])) <= (maxHeight - clue_End + 1)))
+        {
+            List<int> availableHeights_Sequence = new List<int>(availableHeights[0, position[1]]);
+
+            availableHeights_Sequence.Remove(inspectedHeight);
+            availableHeights_Sequence.Remove(maxHeight);
+
+            List<int[]> heightsCombinations_AvailableHeights = new List<int[]>();
+
+            int emptySpacesBeforeMaxHeight = 0;
+            List<int> sequence = new List<int>();
+            for (int index = 0; index < inspectedSequences.GetLength(0); index++)
+            {
+                sequence.Add(inspectedSequences[index, position[1]]);
+
+                if (inspectedSequences[index, position[1]] == 0 && index != position[0])
+                {
+                    emptySpacesBeforeMaxHeight++;
+                    heightsCombinations_AvailableHeights.Add(availableHeights[1, index].ToArray());
+                }
+            }
+
+            int startHeight_Index_Inc = 0;
+            int startHeight_Index_Dec = availableHeights_Sequence.Count - 1;
+
+            int startHeight_Reverse_Index_Inc = 0;
+            int startHeight_Reverse_Index_Dec = availableHeights_Sequence.Count - 1;
+
+            List<int> availableHeights_Sequence_Reverse = new List<int>();
+            for (int index = availableHeights_Sequence.Count - 1; index >= 0; index--)
+            {
+                availableHeights_Sequence_Reverse.Add(availableHeights_Sequence[index]);
+            }
+
+            HashSet<int> combinations = new HashSet<int>();
+
+            do
+            {
+                if (SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, 1, ref startHeight_Index_Inc, position[0], sequence, availableHeights_Sequence, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, -1, ref startHeight_Index_Dec, position[0], sequence, availableHeights_Sequence, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, 1, ref startHeight_Reverse_Index_Inc, position[0], sequence, availableHeights_Sequence_Reverse, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, -1, ref startHeight_Reverse_Index_Dec, position[0], sequence, availableHeights_Sequence_Reverse, availableHeights, combinations)
+                )
+                {
+                    return true;
+                }
+
+            } while (startHeight_Index_Inc < availableHeights_Sequence.Count && startHeight_Index_Dec >= 0 && !clueSatisfied);
+
+            // ------------------------------------------
+
+            if (emptySpacesBeforeMaxHeight > 0)
+            {
+                Dictionary<int, int[]> heightsCombinations = SequenceCombinations(emptySpacesBeforeMaxHeight, availableHeights_Sequence, heightsCombinations_AvailableHeights, combinations);
+
+                foreach (var heights in heightsCombinations)
+                {
+                    bool clueSatisfied_Combination = SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, position[0], sequence, heights.Value);
+
+                    if (clueSatisfied_Combination)
+                    {
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                bool clueSatisfied_Combination = SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, position[0], sequence, new int[0]);
+
+                if (clueSatisfied_Combination)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return clueSatisfied;
+    }
+
+    static bool SatisfiedClues_Row(int maxHeight, int inspectedHeight, int clue_Begin, int clue_End, int[] position, List<int>[,] availableHeights, int[,] inspectedSequences)
+    {
+        bool clueSatisfied = false;
+
+        if (!availableHeights[0, position[1]].Contains(inspectedHeight))
+        {
+            return false;
+        }
+
+        if ((inspectedHeight - position[1]) <= (maxHeight - clue_Begin + 1) && ((inspectedHeight - (inspectedSequences.GetLength(0) - 1 - position[1])) <= (maxHeight - clue_End + 1)))
+        {
+            List<int> availableHeights_Sequence = new List<int>(availableHeights[1, position[0]]);
+
+            availableHeights_Sequence.Remove(inspectedHeight);
+            availableHeights_Sequence.Remove(maxHeight);
+
+            List<int[]> heightsCombinations_AvailableHeights = new List<int[]>();
+
+            List<int> sequence = new List<int>();
+            int emptySpacesBeforeMaxHeight = 0;
+            for (int index = 0; index < inspectedSequences.GetLength(0); index++)
+            {
+                sequence.Add(inspectedSequences[position[0], index]);
+
+                if (inspectedSequences[position[0], index] == 0 && index != position[1])
+                {
+                    emptySpacesBeforeMaxHeight++;
+                    heightsCombinations_AvailableHeights.Add(availableHeights[0, index].ToArray());
+                }
+            }
+
+            int startHeight_Index_Inc = 0;
+            int startHeight_Index_Dec = availableHeights_Sequence.Count - 1;
+
+            int startHeight_Reverse_Index_Inc = 0;
+            int startHeight_Reverse_Index_Dec = availableHeights_Sequence.Count - 1;
+
+            List<int> availableHeights_Sequence_Reverse = new List<int>();
+            for (int index = availableHeights_Sequence.Count - 1; index >= 0; index--)
+            {
+                availableHeights_Sequence_Reverse.Add(availableHeights_Sequence[index]);
+            }
+
+            HashSet<int> combinations = new HashSet<int>();
+
+            do
+            {
+                if (SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, 1, ref startHeight_Index_Inc, position[1], sequence, availableHeights_Sequence, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, -1, ref startHeight_Index_Dec, position[1], sequence, availableHeights_Sequence, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, 1, ref startHeight_Reverse_Index_Inc, position[1], sequence, availableHeights_Sequence_Reverse, availableHeights, combinations)
+                    || SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, -1, ref startHeight_Reverse_Index_Dec, position[1], sequence, availableHeights_Sequence_Reverse, availableHeights, combinations)
+                )
+                {
+                    return true;
+                }
+
+            } while (startHeight_Index_Inc < availableHeights_Sequence.Count && startHeight_Index_Dec >= 0 && !clueSatisfied);
+
+            // ------------------------------------------
+
+            if (emptySpacesBeforeMaxHeight > 0)
+            {
+                Dictionary<int, int[]> heightsCombinations = SequenceCombinations(emptySpacesBeforeMaxHeight, availableHeights_Sequence, heightsCombinations_AvailableHeights, combinations);
+
+                foreach (var heights in heightsCombinations)
+                {
+                    bool clueSatisfied_Combination = SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, position[1], sequence, heights.Value);
+
+                    if (clueSatisfied_Combination)
+                    {
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                bool clueSatisfied_Combination = SatisfiedClues_BuildSequence_OneSide(clue_Begin, clue_End, inspectedHeight, maxHeight, position[1], sequence, new int[0]);
+
+                if (clueSatisfied_Combination)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return clueSatisfied;
+    }
+
+    static bool SatisfiedClues_BuildSequence_OneSide(int clue_Begin, int clue_End, int inspectedHeight, int maxHeight, int position, List<int> inspectedSequences, int[] availableHeights_Sequence)
+    {
+        int clue_Begin_LastMax = 0;
+        int clue_Begin_VisibleHeights = 0;
+        int clue_Begin_SequenceIndex = 0;
+
+        int availableHeights_Begin_Index = 0;
+
+        int clue_End_LastMax = 0;
+        int clue_End_VisibleHeights = 0;
+        int clue_End_SequenceIndex = inspectedSequences.Count - 1;
+
+        int availableHeights_End_Index = availableHeights_Sequence.Length - 1;
+
+        while (clue_Begin_LastMax != maxHeight || clue_End_LastMax != maxHeight)
+        {
+            if (clue_Begin_LastMax != maxHeight)
+            {
+                if (inspectedSequences[clue_Begin_SequenceIndex] == 0)
+                {
+                    if (clue_Begin_SequenceIndex == position)
+                    {
+                        if (inspectedHeight > clue_Begin_LastMax)
+                        {
+                            clue_Begin_LastMax = inspectedHeight;
+                            clue_Begin_VisibleHeights++;
+                        }
+                    }
+                    else
+                    {
+                        if (availableHeights_Sequence[availableHeights_Begin_Index] > clue_Begin_LastMax)
+                        {
+                            clue_Begin_LastMax = availableHeights_Sequence[availableHeights_Begin_Index];
+                            clue_Begin_VisibleHeights++;
+                        }
+
+                        availableHeights_Begin_Index++;
+                    }
+                }
+                else if (inspectedSequences[clue_Begin_SequenceIndex] > clue_Begin_LastMax)
+                {
+                    clue_Begin_LastMax = inspectedSequences[clue_Begin_SequenceIndex];
+                    clue_Begin_VisibleHeights++;
+                }
+
+                clue_Begin_SequenceIndex++;
+            }
+
+            if (clue_End_LastMax != maxHeight)
+            {
+                if (inspectedSequences[clue_End_SequenceIndex] == 0)
+                {
+                    if (clue_End_SequenceIndex == position)
+                    {
+                        if (inspectedHeight > clue_End_LastMax)
+                        {
+                            clue_End_LastMax = inspectedHeight;
+                            clue_End_VisibleHeights++;
+                        }
+                    }
+                    else
+                    {
+                        if (availableHeights_Sequence[availableHeights_End_Index] > clue_End_LastMax)
+                        {
+                            clue_End_LastMax = availableHeights_Sequence[availableHeights_End_Index];
+                            clue_End_VisibleHeights++;
+                        }
+
+                        availableHeights_End_Index--;
+                    }
+                }
+                else if (inspectedSequences[clue_End_SequenceIndex] > clue_End_LastMax)
+                {
+                    clue_End_LastMax = inspectedSequences[clue_End_SequenceIndex];
+                    clue_End_VisibleHeights++;
+                }
+
+                clue_End_SequenceIndex--;
+            }
+        }
+
+        if ((clue_Begin == 0 || clue_Begin_VisibleHeights == clue_Begin) && (clue_End == 0 || clue_End_VisibleHeights == clue_End))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static bool SatisfiedClues_BuildSequence_OneSide(int clue_Begin, int clue_End, int inspectedHeight, int maxHeight, int startHeight_Index_Modifier, ref int startHeight_Index, int position, List<int> inspectedSequences, List<int> availableHeights_Sequence, List<int>[,] availableHeights, HashSet<int> combinations)
+    {
+        int combination = 0;
+
+        int availableHeights_Sequence_Index = startHeight_Index;
+
+        List<int> sequence = new List<int>(inspectedSequences);
+
+        for (int sequence_Index = 0; sequence_Index < sequence.Count; sequence_Index++)
+        {
+            if (sequence[sequence_Index] == 0)
+            {
+                if (sequence_Index == position)
+                {
+                    sequence[sequence_Index] = inspectedHeight;
+                }
+                else
+                {
+                    sequence[sequence_Index] = availableHeights_Sequence[availableHeights_Sequence_Index];
+
+                    int digits = availableHeights_Sequence[availableHeights_Sequence_Index] == 0 ? 1 : (int)Math.Floor(Math.Log10(availableHeights_Sequence[availableHeights_Sequence_Index])) + 1;
+                    combination = (combination * (int)Math.Pow(10, digits)) + availableHeights_Sequence[availableHeights_Sequence_Index];
+
+                    availableHeights_Sequence_Index += startHeight_Index_Modifier * -1;
+                    availableHeights_Sequence_Index = availableHeights_Sequence_Index % availableHeights_Sequence.Count;
+
+                    if (availableHeights_Sequence_Index == -1)
+                    {
+                        availableHeights_Sequence_Index = availableHeights_Sequence.Count - 1;
+                    }
+                }
+            }
+        }
+
+        combinations.Add(combination);
+
+        if (SatisfiedClues_CheckSequence(maxHeight, clue_Begin, clue_End, sequence))
+        {
+            return true;
+        }
+        else
+        {
+            startHeight_Index += startHeight_Index_Modifier;
+            return false;
+        }
+    }
+
+    static bool SatisfiedClues_CheckSequence(int maxHeight, int clue_Begin, int clue_End, List<int> validatedSequence)
+    {
+        int clue_Begin_LastMax = 0;
+        int clue_Begin_VisibleHeights = 0;
+        int clue_Begin_SequenceIndex = 0;
+
+        int clue_End_LastMax = 0;
+        int clue_End_VisibleHeights = 0;
+        int clue_End_SequenceIndex = validatedSequence.Count - 1;
+
+        while (clue_Begin_LastMax != maxHeight || clue_End_LastMax != maxHeight)
+        {
+            if (clue_Begin_LastMax != maxHeight)
+            {
+                if (validatedSequence[clue_Begin_SequenceIndex] > clue_Begin_LastMax)
+                {
+                    clue_Begin_VisibleHeights++;
+                    clue_Begin_LastMax = validatedSequence[clue_Begin_SequenceIndex];
+                }
+
+                clue_Begin_SequenceIndex++;
+            }
+
+            if (clue_End_LastMax != maxHeight)
+            {
+                if (validatedSequence[clue_End_SequenceIndex] > clue_End_LastMax)
+                {
+                    clue_End_VisibleHeights++;
+                    clue_End_LastMax = validatedSequence[clue_End_SequenceIndex];
+                }
+
+                clue_End_SequenceIndex--;
+            }
+        }
+
+        if ((clue_Begin == 0 || clue_Begin_VisibleHeights == clue_Begin) && (clue_End == 0 || clue_End_VisibleHeights == clue_End))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static Dictionary<int, int[]> SequenceCombinations(int combination_Lenght, List<int> elementsToCombine, List<int[]> availableHeights, HashSet<int> checkedCombinations)
+    {
+        Dictionary<int, int[]> combinations = new Dictionary<int, int[]>();
+
+        List<CombinationPhase> combinationPhases = new List<CombinationPhase>()
+        {
+            new CombinationPhase(0, new int[0], elementsToCombine)
+        };
+
+        for (int combinationSequence_Index = 0; combinationSequence_Index < combination_Lenght; combinationSequence_Index++)
+        {
+            List<CombinationPhase> combinationPhases_New = new List<CombinationPhase>();
+
+            for (int combinationPhases_Index = 0; combinationPhases_Index < combinationPhases.Count; combinationPhases_Index++)
+            {
+                CombinationPhase combinationPhase_Current = combinationPhases[combinationPhases_Index];
+
+                for (int elementsToCombine_Index = 0; elementsToCombine_Index < combinationPhase_Current.elementsToCombine.Count; elementsToCombine_Index++)
+                {
+                    if (availableHeights[combinationSequence_Index].Contains(combinationPhase_Current.elementsToCombine[elementsToCombine_Index]))
+                    {
+                        int digits = combinationPhase_Current.elementsToCombine[elementsToCombine_Index] == 0 ? 1 : (int)Math.Floor(Math.Log10(combinationPhase_Current.elementsToCombine[elementsToCombine_Index])) + 1;
+
+                        int newKey = (combinationPhase_Current.key * (int)Math.Pow(10, digits)) + combinationPhase_Current.elementsToCombine[elementsToCombine_Index];
+                        
+                        int[] newValue = combinationPhase_Current.value.Concat(new int[1] { combinationPhase_Current.elementsToCombine[elementsToCombine_Index] }).ToArray();
+
+                        if (combinationSequence_Index < combination_Lenght - 1)
+                        {
+                            List<int> elementsToCombine_New = new List<int>(combinationPhase_Current.elementsToCombine);
+                            elementsToCombine_New.RemoveAt(elementsToCombine_Index);
+
+                            CombinationPhase combinationPhase_New = new CombinationPhase(newKey, newValue, elementsToCombine_New);
+
+                            combinationPhases_New.Add(combinationPhase_New);
+                        }
+                        else
+                        {
+                            if (!checkedCombinations.Contains(newKey))
+                            {
+                                combinations.Add(newKey, newValue);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (combinationSequence_Index < combination_Lenght - 1)
+            {
+                combinationPhases = combinationPhases_New;
+            }
+            else
+            {
+                return combinations;
+            }
+        }
+
+        return null;
+    }
+
+    static T[,] Array2D_Copy<T>(T[,] origin)
+    {
+        T[,] copy = new T[origin.GetLength(0), origin.GetLength(1)];
+
+        for (int row = 0; row < origin.GetLength(0); row++)
+        {
+            for (int column = 0; column < origin.GetLength(1); column++)
+            {
+                copy[row, column] = origin[row, column];
+            }
+        }
+
+        return copy;
+    }
+
+    static T[][] FromArray2D_ToArrayOfArray<T>(T[,] origin)
+    {
+        T[][] copy = new T[origin.GetLength(0)][];
+
+        for (int row = 0; row < origin.GetLength(0); row++)
+        {
+            copy[row] = new T[origin.GetLength(0)];
+            
+            for (int column = 0; column < origin.GetLength(1); column++)
+            {
+                copy[row][column] = origin[row, column];
+            }
+        }
+
+        return copy;
+    }       
+}
